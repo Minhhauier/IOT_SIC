@@ -9,6 +9,7 @@
 #include <dhtESP32-rmt.h>
 #include <BlynkSimpleEsp32.h>
 #include <ESP32Servo.h>
+#include <HTTPClient.h>
 
 //Hiển thị oled
 #include <Wire.h>
@@ -28,15 +29,40 @@ int freq = 50;
   
 //Khai báo biến phục vụ kết nối wifi và blynk 
 char auth[] = "N1bvQQEmolnesfKtaoBjqH22HAsLAtTP";
-char ssid[] = "PING⁹⁹⁹⁺";       // Thay bằng tên Wi-Fi thật của bạn
-char pass[] = "123456789@"; // Thay bằng mật khẩu Wi-Fi
+char ssid[] = "HaUI FREE";       // Thay bằng tên Wi-Fi thật của bạn
+char pass[] = ""; // Thay bằng mật khẩu Wi-Fi
 
 //Khai báo biến
 int sensorPin = 34; 
 float temperature = 0.0;
 int sensorValue=0;
 float humidity = 0.0;
+const char* server = "http://api.thingspeak.com/update";
+String apiKey = "YFMXAE3ISTS8QWVZ"; 
 
+void thingspeak(int temp,int humid, int value)
+{
+    if (WiFi.status() == WL_CONNECTED) {
+    HTTPClient http;
+    String url = server + String("?api_key=") + apiKey + 
+                 "&field1=" + String(temp) +
+                 "&field2=" + String(humid) +
+                 "&field3=" + String(value);
+
+    http.begin(url);
+    int httpResponseCode = http.GET();
+
+    if (httpResponseCode > 0) {
+      Serial.println("Gửi thành công, mã phản hồi: " + String(httpResponseCode));
+    } else {
+      Serial.println("Lỗi gửi dữ liệu: " + String(httpResponseCode));
+    }
+
+    http.end();
+  } else {
+    Serial.println("WiFi không kết nối!");
+  }
+}
 void hienthi(int temp,int humi,int value)
 {
      display.clearDisplay();
@@ -92,7 +118,7 @@ void loop()
 {
   Blynk.run();
   uint8_t error = read_dht(temperature, humidity, 19, DHT11);
-  static unsigned long lastMsg = 0;
+  static unsigned long lastMsg = 0,lupd=0;
   sensorValue = analogRead(sensorPin);
   if (millis() - lastMsg > 1000) {
     lastMsg = millis(); 
@@ -107,7 +133,11 @@ void loop()
       Serial.println("Error reading DHT sensor");
     }
   }
-
+  if (millis() - lupd > 15000)
+  {
+    lupd=millis();
+    thingspeak(temperature,humidity, sensorValue);
+  }
   if (temperature > 40||sensorValue>1000) 
   {
     digitalWrite(23, 0);
